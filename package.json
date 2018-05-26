@@ -1,0 +1,34 @@
+{
+  "name": "main.bug.builders",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon -w src --exec \"yarn lint && babel-node src --presets es2015\"",
+    "build": "yarn lint && babel src -s -D -d dist --presets es2015",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "yarn build && node dist",
+    "package": "yarn build && cp package.json dist/ && cd dist && tar cvzf ../dist.tar.gz ./",
+    "lint": "eslint src/",
+    "prettier": "prettier --print-width 80 --trailing-comma es5 --single-quote --write \"src/**/*.js\""
+  },
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "body-parser": "^1.18.2",
+    "cors": "^2.8.4",
+    "express": "^4.16.3",
+    "http": "^0.0.0",
+    "joi": "^13.3.0",
+    "stripe": "^6.0.0"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "babel-eslint": "^8.2.3",
+    "babel-preset-es2015": "^6.24.1",
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb-base": "^12.1.0",
+    "eslint-config-prettier": "^2.9.0",
+    "eslint-plugin-import": "^2.11.0"
+  }
+}
