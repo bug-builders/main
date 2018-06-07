@@ -119,7 +119,7 @@ export default () => {
         for(let i = 0; i < signatureLength; i += 1) {
           signatureHex += subscription.metadata[`signature_${i}`];
         }
-        const signatureGzip = Buffer.from(signatureHex, 'hex');
+        const signatureGzip = Buffer.from(signatureHex, 'base64');
 
         const signature = zlib.gunzipSync(signatureGzip).toString();
 
@@ -146,13 +146,14 @@ export default () => {
 
   route.put('/devis/:id/:devis_id', (req, res) => {
     const bufferSignature = Buffer.from(req.body.signature, 'utf-8');
-    const zippedSignature = zlib.gzipSync(bufferSignature).toString('hex');
-    const signature = chunkString(zippedSignature, 450);
+    const zippedSignature = zlib.gzipSync(bufferSignature).toString('base64');
+    const signature = chunkString(zippedSignature, 500);
 
     const metadata = {
       legalName: req.body.legalName,
       planned: req.body.planned,
-      signatureLength: signature.length
+      signatureLength: signature.length,
+      signatureVersion: '1'
     };
 
     signature.forEach((sig, i) => {
