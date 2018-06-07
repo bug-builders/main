@@ -27,7 +27,8 @@ export default () => {
         } else {
           ({label} = transaction);
         }
-        ret.transactions.push({label, amount: transaction.amount_cents, type: transaction.side})
+
+        ret.transactions.push({date: transaction.settled_at, label, amount: transaction.amount_cents, type: transaction.side})
       })
       res.json(ret);
     })

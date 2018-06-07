@@ -1,7 +1,9 @@
 import { Router } from 'express';
+import zlib from 'zlib';
 import Joi from 'joi';
 import stripePackage from 'stripe';
 import utils from '../utils';
+
 
 const stripe = stripePackage(process.env.BUGBUILDERS_STRIPE_KEY);
 
@@ -27,11 +29,17 @@ function validate(req, res, next){
   }
 }
 
+function chunkString(str, length) {
+  return str.match(new RegExp(`.{1,${length}}`, 'g'));
+}
+
 export default () => {
   const route = Router();
 
   route.use((req, res, next) => {
-    if(req.method === 'PUT' && req.originalUrl.startsWith('/customer/')){
+    if(
+      (req.method === 'PUT' && req.originalUrl.startsWith('/customer/'))
+      || ((req.method === 'GET' || req.method === 'PUT') && req.originalUrl.startsWith('/customer/devis'))){
       next();
     } else {
       const b64auth = (req.headers.authorization || '').split(' ')[1] || ''
@@ -61,6 +69,111 @@ export default () => {
       .then(customers => {
         const privateCustomers = customers.data.filter(customer => customer.metadata.provider === req.member.description);
         res.json(privateCustomers);
+      })
+  });
+
+  route.get('/devis/:id/:devis_id', (req, res) => {
+    let customer;
+    let plan;
+    stripe.customers.retrieve(req.params.id)
+      .then(rCustomer => {
+        customer = rCustomer;
+        return stripe.plans.retrieve(req.params.devis_id)
+      })
+      .then(rPlan => {
+        plan = rPlan;
+        return stripe.products.retrieve(plan.product);
+      }).then(product => {
+        const devis = {
+          customer: {
+            name: customer.description,
+            address: customer.shipping.address,
+          },
+          amount: plan.amount,
+          name: product.name,
+          metadata: plan.metadata,
+        }
+        res.json(devis);
+      })
+  });
+
+  route.get('/devis/:id', (req, res) => {
+    let customer;
+    let plan;
+    let subscription;
+    stripe.subscriptions.retrieve(req.params.id)
+      .then(rSubscription => {
+        subscription = rSubscription;
+        return stripe.customers.retrieve(subscription.customer)
+      })
+      .then(rCustomer => {
+        customer = rCustomer;
+        ({ plan } = subscription);
+        return stripe.products.retrieve(plan.product);
+      })
+      .then(product => {
+        const signatureLength = parseInt(subscription.metadata.signatureLength, 10);
+
+        let signatureHex = '';
+
+        for(let i = 0; i < signatureLength; i += 1) {
+          signatureHex += subscription.metadata[`signature_${i}`];
+        }
+        const signatureGzip = Buffer.from(signatureHex, 'hex');
+
+        const signature = zlib.gunzipSync(signatureGzip).toString();
+
+        const devis = {
+          customer: {
+            name: customer.description,
+            address: customer.shipping.address,
+          },
+          amount: plan.amount,
+          name: product.name,
+          metadata: plan.metadata,
+          created: subscription.created,
+          planned: subscription.metadata.planned,
+          legalName: subscription.metadata.legalName,
+          signature
+        }
+        res.json(devis);
+      })
+      .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something goes wrong'});
+      })
+  });
+
+  route.put('/devis/:id/:devis_id', (req, res) => {
+    const bufferSignature = Buffer.from(req.body.signature, 'utf-8');
+    const zippedSignature = zlib.gzipSync(bufferSignature).toString('hex');
+    const signature = chunkString(zippedSignature, 450);
+
+    const metadata = {
+      legalName: req.body.legalName,
+      planned: req.body.planned,
+      signatureLength: signature.length
+    };
+
+    signature.forEach((sig, i) => {
+      metadata[`signature_${i}`] = sig;
+    })
+    stripe.subscriptions.create({
+      customer: req.params.id,
+      tax_percent: 20.0,
+      metadata,
+      items: [
+        {
+          plan: req.params.devis_id,
+        },
+      ]
+    })
+      .then(subscription => {
+        res.json({id: subscription.id});
+      })
+      .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something goes wrong'});
       })
   });
 
