@@ -38,7 +38,7 @@ export default () => {
 
   route.use((req, res, next) => {
     if(
-      (req.method === 'PUT' && req.originalUrl.startsWith('/customer/'))
+      (req.method === 'PUT' && req.originalUrl.startsWith('/customer/cus_'))
       || ((req.method === 'GET' || req.method === 'PUT') && req.originalUrl.startsWith('/customer/devis'))){
       next();
     } else {
@@ -71,6 +71,34 @@ export default () => {
         res.json(privateCustomers);
       })
   });
+
+  route.put('/use/:id', (req, res) => {
+    stripe.subscriptionItems.retrieve(req.params.id)
+      .then(rSubscriptionItem => {
+        if(rSubscriptionItem.plan.metadata.provider === req.member.description) {
+          const timestamp = Math.floor(Date.now() / 1000);
+          if(req.body.quantity) {
+            return stripe.usageRecords.create(req.params.id, {
+              quantity: req.body.quantity,
+              timestamp,
+              action: 'set',
+            })
+          }
+          return stripe.usageRecords.create(req.params.id, {
+            quantity: 1,
+            timestamp
+          })
+        }
+        throw 'Not your subscription'
+      })
+      .then(() => {
+        res.json({'ok': true})
+      })
+      .catch(err => {
+        console.error(err);
+        res.status(401).json({error: 'Invalid id'})
+      })
+  })
 
   route.get('/devis/:id/:devis_id', (req, res) => {
     let customer;
