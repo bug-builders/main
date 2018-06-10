@@ -70,6 +70,10 @@ export default () => {
         const privateCustomers = customers.data.filter(customer => customer.metadata.provider === req.member.description);
         res.json(privateCustomers);
       })
+      .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something goes wrong'});
+      })
   });
 
   route.put('/use/:id', (req, res) => {
@@ -92,7 +96,7 @@ export default () => {
         throw 'Not your subscription'
       })
       .then(() => {
-        res.json({'ok': true})
+        res.json({ok: true})
       })
       .catch(err => {
         console.error(err);
@@ -122,6 +126,10 @@ export default () => {
           metadata: plan.metadata,
         }
         res.json(devis);
+      })
+      .catch(err => {
+        console.error(err);
+        res.status(401).json({error: 'Invalid id'});
       })
   });
 
@@ -211,6 +219,10 @@ export default () => {
       .then(customer => {
         res.json(customer);
       })
+      .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something goes wrong'});
+      })
   });
 
   route.put('/:id', validate, (req, res) => {
@@ -242,7 +254,7 @@ export default () => {
         throw `Not in pending status : ${JSON.stringify(customer.metadata)}`;
       })
       .then(() => {
-        res.json({'ok': true})
+        res.json({ok: true})
       })
       .catch(err => {
         console.error(err);

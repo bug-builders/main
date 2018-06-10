@@ -14,12 +14,12 @@ export default () => {
   route.get('/', (req, res) => {
     const ret = {transactions: []};
     axios.get(`/organizations/${process.env.BUGBUILDERS_QONTO_LOGIN}`)
-    .then((response) => {
+    .then(response => {
       const bankAccounts = response.data.organization.bank_accounts[0];
       ret.balance = bankAccounts.balance_cents;
       return axios.get(`/transactions?slug=${bankAccounts.slug}&iban=${bankAccounts.iban}`);
     })
-    .then((response) => {
+    .then(response => {
       response.data.transactions.forEach(transaction => {
         let label;
         if(transaction.side === 'credit') {
@@ -31,6 +31,10 @@ export default () => {
         ret.transactions.push({date: transaction.settled_at, label, amount: transaction.amount_cents, type: transaction.side})
       })
       res.json(ret);
+    })
+    .catch(err => {
+      console.error(err);
+      res.status(500).json({error: 'Something goes wrong'});
     })
   });
 

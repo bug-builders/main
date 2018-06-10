@@ -16,7 +16,10 @@ export default () => {
         }
         res.json(account);
       })
-
+      .catch(err => {
+        console.error(err);
+        res.status(500).json({error: 'Something goes wrong'});
+      })
   });
 
   return route;
