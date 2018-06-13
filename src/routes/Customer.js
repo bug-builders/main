@@ -4,7 +4,6 @@ import Joi from 'joi';
 import stripePackage from 'stripe';
 import utils from '../utils';
 
-
 const stripe = stripePackage(process.env.BUGBUILDERS_STRIPE_KEY);
 
 function validate(req, res, next){
