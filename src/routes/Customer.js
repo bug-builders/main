@@ -119,6 +119,7 @@ export default () => {
           customer: {
             name: customer.description,
             address: customer.shipping.address,
+            tva: (typeof(customer.metadata.tva) !== 'undefined'),
           },
           amount: plan.amount,
           name: product.name,
@@ -194,16 +195,19 @@ export default () => {
     signature.forEach((sig, i) => {
       metadata[`signature_${i}`] = sig;
     })
-    stripe.subscriptions.create({
-      customer: req.params.id,
-      tax_percent: 20.0,
-      metadata,
-      items: [
-        {
-          plan: req.params.devis_id,
-        },
-      ]
-    })
+
+    stripe.customers.retrieve(req.params.id)
+      .then(customer => stripe.subscriptions.create({
+          customer: req.params.id,
+          tax_percent: customer.metadata.tva ? 20.0 : 0,
+          metadata,
+          items: [
+            {
+              plan: req.params.devis_id,
+            },
+          ]
+        })
+      )
       .then(subscription => {
         res.json({id: subscription.id});
       })
