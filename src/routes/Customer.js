@@ -6,6 +6,21 @@ import utils from '../utils';
 
 const stripe = stripePackage(process.env.BUGBUILDERS_STRIPE_KEY);
 
+function validateDevis(req, res, next){
+  const schema = {
+    amount: Joi.number().positive().required(),
+    name: Joi.string().trim().required(),
+    description: Joi.string().trim().required()
+  }
+
+  const result = Joi.validate(req.body, schema);
+  if(result.error === null) {
+    next();
+  } else {
+    res.status(400).json({error: result.error.message});
+  }
+}
+
 function validate(req, res, next){
   const schema = {
     name: Joi.string().trim().min(3).max(50).required(),
@@ -35,35 +50,7 @@ function chunkString(str, length) {
 export default () => {
   const route = Router();
 
-  route.use((req, res, next) => {
-    if(
-      (req.method === 'PUT' && req.originalUrl.startsWith('/customer/cus_'))
-      || ((req.method === 'GET' || req.method === 'PUT') && req.originalUrl.startsWith('/customer/devis'))){
-      next();
-    } else {
-      const b64auth = (req.headers.authorization || '').split(' ')[1] || ''
-      const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
-      stripe.customers.list()
-        .then(customers => {
-          req.member = customers.data.filter(customer => typeof(customer.metadata.membre) !== 'undefined').find(m => m.email === login);
-          if(typeof(req.member) === 'undefined'){
-            throw 'User not found';
-          }
-          const hashedPassword = utils.hash(`${req.member.metadata.salt}|||${password}`);
-          if(hashedPassword === req.member.metadata.password){
-            next();
-          } else {
-            throw 'Invalid password';
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          res.status(401).json({error: 'Authentication required.'});
-        })
-    }
-  })
-
-  route.get('/list', (req, res) => {
+  route.get('/list', utils.authenticate, (req, res) => {
     stripe.customers.list()
       .then(customers => {
         const privateCustomers = customers.data.filter(customer => customer.metadata.provider === req.member.description);
@@ -75,7 +62,7 @@ export default () => {
       })
   });
 
-  route.put('/use/:id', (req, res) => {
+  route.put('/use/:id', utils.authenticate, (req, res) => {
     stripe.subscriptionItems.retrieve(req.params.id)
       .then(rSubscriptionItem => {
         if(rSubscriptionItem.plan.metadata.provider === req.member.description) {
@@ -132,6 +119,34 @@ export default () => {
         res.status(401).json({error: 'Invalid id'});
       })
   });
+
+  route.post('/devis', utils.authenticate, validateDevis, (req, res) => {
+    const name = `${req.member.description} ${req.body.name}`;
+    stripe.products.create({
+      name,
+      type: 'service',
+      unit_label: 'day',
+      statement_descriptor: `Bug Builders ${req.member.description.substr(0, 1).toUpperCase()}${req.member.description.split(' ')[1].substr(0, 2).toUpperCase()}`,
+    })
+      .then(product => stripe.plans.create({
+          amount: parseInt(req.body.amount, 10),
+          interval: 'month',
+          product: product.id,
+          currency: 'eur',
+          usage_type: 'metered',
+          billing_scheme: 'per_unit',
+          nickname: name,
+          aggregate_usage: 'sum',
+          metadata: {
+            provider: req.member.description,
+            description: req.body.description,
+          },
+        })
+      )
+      .then(plan => {
+        res.json(plan);
+      })
+  })
 
   route.get('/devis/:id', (req, res) => {
     let customer;
@@ -195,12 +210,14 @@ export default () => {
     signature.forEach((sig, i) => {
       metadata[`signature_${i}`] = sig;
     })
-
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth()+1, 1);
     stripe.customers.retrieve(req.params.id)
       .then(customer => stripe.subscriptions.create({
           customer: req.params.id,
           tax_percent: customer.metadata.tva ? 20.0 : 0,
           metadata,
+          billing_cycle_anchor: nextMonth.getTime()/1000,
           items: [
             {
               plan: req.params.devis_id,
@@ -217,7 +234,7 @@ export default () => {
       })
   });
 
-  route.post('/', (req, res) => {
+  route.post('/', utils.authenticate, (req, res) => {
     stripe.customers.create({metadata: {provider: req.member.description, status: 'pending'}})
       .then(customer => {
         res.json(customer);

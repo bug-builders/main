@@ -38,7 +38,17 @@ export default () => {
           if(transaction.side === 'credit') {
             label = anon(transaction.label, membersList);
           } else {
-            ({label} = transaction);
+            let note = '';
+            try {
+              note = JSON.parse(transaction.note);
+            } catch (err) {
+              note = '';
+            }
+            if(note) {
+              label = note;
+            } else {
+              ({label} = transaction)
+            }
           }
 
           ret.transactions.push({date: transaction.settled_at, label, amount: transaction.amount_cents, type: transaction.side})
