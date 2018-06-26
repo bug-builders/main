@@ -217,6 +217,7 @@ export default () => {
           customer: req.params.id,
           tax_percent: customer.metadata.tva ? 20.0 : 0,
           metadata,
+          billing: 'send_invoice',
           billing_cycle_anchor: nextMonth.getTime()/1000,
           items: [
             {
