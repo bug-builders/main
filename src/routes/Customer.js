@@ -218,6 +218,7 @@ export default () => {
           tax_percent: customer.metadata.tva ? 20.0 : 0,
           metadata,
           billing: 'send_invoice',
+          days_until_due: 30,
           billing_cycle_anchor: nextMonth.getTime()/1000,
           items: [
             {
