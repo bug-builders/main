@@ -113,11 +113,12 @@ export default () => {
     const bankTransactions = await getBankTransactions();
     const filteredTransactions = bankTransactions.transactions.filter(({side, note}) => side === 'debit' && note === null)
     const cleanedTransactions = filteredTransactions.map(transaction =>
-      ({date: transaction.settled_at, label: transaction.label, amount: transaction.amount_cents, type: transaction.side})
+      ({date: new Date(transaction.settled_at), label: transaction.label, amount: transaction.amount_cents, type: transaction.side})
     )
 
     const subTotal = cleanedTransactions.reduce((accu, transaction) => accu + transaction.amount, 0)
-    res.json({balance: (total - subTotal), transactions: cleanedTransactions.concat(cleanedInvoices)});
+    const transactions = cleanedTransactions.concat(cleanedInvoices)
+    res.json({balance: (total - subTotal), transactions: transactions.sort((a,b) => a.date>b.date ? -1 : 1)});
   })
 
   route.get('/:provider', async (req, res) => {
@@ -158,11 +159,12 @@ export default () => {
         ({label} = transaction)
       }
 
-      return {date: transaction.settled_at, label, amount: transaction.amount_cents, type: transaction.side}
+      return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side}
     })
 
     const subTotal = cleanedTransactions.reduce((accu, transaction) => accu + transaction.amount, 0)
-    res.json({balance: (total - subTotal), transactions: cleanedTransactions.concat(cleanedInvoices)});
+    const transactions = cleanedTransactions.concat(cleanedInvoices)
+    res.json({balance: (total - subTotal), transactions: transactions.sort((a,b) => a.date>b.date ? -1 : 1)});
   })
 
   return route;
