@@ -51,7 +51,7 @@ export default () => {
   const route = Router();
 
   route.get('/list', utils.authenticate, (req, res) => {
-    stripe.customers.list()
+    stripe.customers.list({limit: 100})
       .then(customers => {
         const privateCustomers = customers.data.filter(customer => customer.metadata.provider === req.member.description);
         res.json(privateCustomers);

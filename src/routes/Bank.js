@@ -27,11 +27,33 @@ async function getBankTransactions() {
   }
 }
 
+function getNet(invoice) {
+  let net = invoice.subtotal;
+  const fees = [];
+
+  if(invoice.charge && invoice.charge.balance_transaction){
+    net -= invoice.charge.balance_transaction.fee;
+    fees.push({name: 'Stripe', amount: invoice.charge.balance_transaction.fee})
+  }
+
+  if(invoice.tax){
+    fees.push({name: 'TVA', amount: invoice.tax})
+  }
+
+  if(invoice.metadata.provider) {
+    const bbFees = Math.ceil(net*bugbuildersFees);
+    fees.push({name: 'Bug Builders', amount: bbFees})
+    net -= bbFees;
+  }
+
+  return {fees, net};
+}
+
 export default () => {
   const route = Router();
   route.get('/', (req, res) => {
     let membersList;
-    stripe.customers.list()
+    stripe.customers.list({limit: 100})
       .then(customers => {
         membersList = customers.data.filter(customer => typeof(customer.metadata.membre) !== 'undefined');
         return getBankTransactions()
@@ -70,21 +92,33 @@ export default () => {
       })
   });
 
-  // route.get('/asso', (req, res) => {
-  //   stripe.invoices.list({limit: 100, expand: ['data.charge', 'data.charge.balance_transaction']})
-  //     .then(invoices => {
-  //       const filteredInvoices = invoices.data.filter(
-  //         ({total, paid}) => total !== 0 && paid
-  //       )
-  //       const total = filteredInvoices.reduce((accu, invoice) => {
-  //         if(invoice.metadata.provider) {
-  //           return accu + invoice.subtotal*bugbuildersFees
-  //         }
-  //         return accu + invoice.subtotal;
-  //       }, 0)
-  //       res.json({total});
-  //     })
-  // })
+  route.get('/asso', async (req, res) => {
+    const invoices = await stripe.invoices.list({limit: 100, expand: ['data.charge', 'data.charge.balance_transaction']});
+    const filteredInvoices = invoices.data.filter(
+      ({total, paid}) => total !== 0 && paid
+    )
+    const cleanedInvoices = filteredInvoices.map(invoice => {
+      const {net, fees} = getNet(invoice);
+      if(invoice.metadata.provider) {
+        const bbFee = fees.find(fee => fee.name === 'Bug Builders')
+        return {date: new Date(invoice.date*1000), amount: bbFee.amount, label: invoice.number, type: 'credit', fees: [{name: invoice.metadata.provider, amount: net}]}
+      }
+      if(invoice.metadata.cotisation) {
+        return {date: new Date(invoice.date*1000), amount: net, label: `Cotisation ${invoice.metadata.cotisation}`, type: 'credit', fees: []}
+      }
+      return {date: new Date(invoice.date*1000), amount: net, label: invoice.number, type: 'credit', fees: []}
+    })
+
+    const total = cleanedInvoices.reduce((accu, invoice) => accu + invoice.amount, 0)
+    const bankTransactions = await getBankTransactions();
+    const filteredTransactions = bankTransactions.transactions.filter(({side, note}) => side === 'debit' && note === null)
+    const cleanedTransactions = filteredTransactions.map(transaction =>
+      ({date: transaction.settled_at, label: transaction.label, amount: transaction.amount_cents, type: transaction.side})
+    )
+
+    const subTotal = cleanedTransactions.reduce((accu, transaction) => accu + transaction.amount, 0)
+    res.json({balance: (total - subTotal), transactions: cleanedTransactions.concat(cleanedInvoices)});
+  })
 
   route.get('/:provider', async (req, res) => {
     const invoices = await stripe.invoices.list({limit: 100, expand: ['data.charge', 'data.charge.balance_transaction']});
@@ -92,21 +126,9 @@ export default () => {
     const filteredInvoices = invoices.data.filter(
       ({total, paid, metadata}) => total !== 0 && paid && metadata.provider === req.params.provider
     )
-
     const cleanedInvoices = filteredInvoices.map(invoice => {
-      let net;
-      const fees = [];
-      if(invoice.charge && invoice.charge.balance_transaction){
-        ({net} = invoice.charge.balance_transaction);
-        fees.push({name: 'Stripe', amount: invoice.charge.balance_transaction.fee})
-      } else {
-        net = invoice.subtotal;
-      }
-      if(invoice.tax){
-        fees.push({name: 'TVA', amount: invoice.tax})
-      }
-      fees.push({name: 'Bug Builders', amount: net*bugbuildersFees})
-      return {date: new Date(invoice.date*1000), amount: net*(1-bugbuildersFees), label: invoice.number, type: 'credit', fees}
+      const {net, fees} = getNet(invoice);
+      return {date: new Date(invoice.date*1000), amount: net, label: invoice.number, type: 'credit', fees}
     })
 
     const total = cleanedInvoices.reduce((accu, invoice) => accu + invoice.amount, 0)

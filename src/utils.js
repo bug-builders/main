@@ -34,7 +34,7 @@ function decrypt(encrypted) {
 function authenticate(req, res, next) {
   const b64auth = (req.headers.authorization || '').split(' ')[1] || ''
   const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':')
-  stripe.customers.list()
+  stripe.customers.list({limit: 100})
     .then(customers => {
       req.member = customers.data.filter(customer => typeof(customer.metadata.membre) !== 'undefined').find(m => m.email === login);
       if(typeof(req.member) === 'undefined'){
