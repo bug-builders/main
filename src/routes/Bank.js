@@ -77,6 +77,9 @@ export default () => {
             }
             if(note) {
               label = note;
+              if(typeof(label.label) === 'undefined'){
+                label.label = transaction.label;
+              }
             } else {
               ({label} = transaction)
             }
