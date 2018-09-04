@@ -27,6 +27,31 @@ async function getBankTransactions() {
   }
 }
 
+function cleanTransactions(transactions, membersList = []) {
+  return transactions.map(transaction => {
+    let label;
+    if(transaction.side === 'credit') {
+      label = anon(transaction.label, membersList);
+    } else {
+      let note = '';
+      try {
+        note = JSON.parse(transaction.note);
+      } catch (err) {
+        note = '';
+      }
+      if(note) {
+        label = note;
+        if(typeof(label.label) === 'undefined'){
+          label.label = transaction.label;
+        }
+      } else {
+        ({label} = transaction)
+      }
+    }
+    return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side};
+  })
+}
+
 function getNet(invoice) {
   let net = invoice.subtotal;
   const fees = [];
@@ -59,35 +84,8 @@ export default () => {
         return getBankTransactions()
       })
       .then(({ balance, transactions }) => {
-        const ret = {
-          balance,
-          transactions: [],
-        };
-
-        transactions.forEach(transaction => {
-          let label;
-          if(transaction.side === 'credit') {
-            label = anon(transaction.label, membersList);
-          } else {
-            let note = '';
-            try {
-              note = JSON.parse(transaction.note);
-            } catch (err) {
-              note = '';
-            }
-            if(note) {
-              label = note;
-              if(typeof(label.label) === 'undefined'){
-                label.label = transaction.label;
-              }
-            } else {
-              ({label} = transaction)
-            }
-          }
-
-          ret.transactions.push({date: transaction.settled_at, label, amount: transaction.amount_cents, type: transaction.side})
-        })
-        res.json(ret);
+        const cleanedTransactions = cleanTransactions(transactions, membersList);
+        res.json({balance, transactions: cleanedTransactions});
       })
       .catch(err => {
         console.error(err);
@@ -114,10 +112,21 @@ export default () => {
 
     const total = cleanedInvoices.reduce((accu, invoice) => accu + invoice.amount, 0)
     const bankTransactions = await getBankTransactions();
-    const filteredTransactions = bankTransactions.transactions.filter(({side, note}) => side === 'debit' && note === null)
-    const cleanedTransactions = filteredTransactions.map(transaction =>
-      ({date: new Date(transaction.settled_at), label: transaction.label, amount: transaction.amount_cents, type: transaction.side})
-    )
+    const filteredTransactions = bankTransactions.transactions.filter(({side, note}) => {
+      let ret = false;
+      if(side === 'debit') {
+        try {
+          const noteObject = JSON.parse(note);
+          if(typeof(noteObject.claimant) === 'undefined'){
+            ret = true;
+          }
+        } catch (err) {
+          ret = true;
+        }
+      }
+      return ret;
+    })
+    const cleanedTransactions = cleanTransactions(filteredTransactions);
 
     const subTotal = cleanedTransactions.reduce((accu, transaction) => accu + transaction.amount, 0)
     const transactions = cleanedTransactions.concat(cleanedInvoices)
@@ -148,23 +157,7 @@ export default () => {
 
     })
 
-    const cleanedTransactions = filteredTransactions.map(transaction => {
-      let note = '';
-      let label;
-      try {
-        note = JSON.parse(transaction.note)
-      } catch (err) {
-        note = '';
-      }
-      if(note) {
-        label = note;
-      } else {
-        ({label} = transaction)
-      }
-
-      return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side}
-    })
-
+    const cleanedTransactions = cleanTransactions(filteredTransactions);
     const subTotal = cleanedTransactions.reduce((accu, transaction) => accu + transaction.amount, 0)
     const transactions = cleanedTransactions.concat(cleanedInvoices)
     res.json({balance: (total - subTotal), transactions: transactions.sort((a,b) => a.date>b.date ? -1 : 1)});
