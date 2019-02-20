@@ -126,6 +126,10 @@ export default () => {
       })
   });
 
+  route.get('/rates', (req, res) => {
+    res.json({rates: taxRates})
+  })
+
   route.get('/asso', async (req, res) => {
     const invoices = await stripe.invoices.list({limit: 100, expand: ['data.charge', 'data.charge.balance_transaction']});
     const filteredInvoices = invoices.data.filter(
