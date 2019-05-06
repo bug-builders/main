@@ -9,7 +9,9 @@
     "start": "yarn build && node dist",
     "package": "yarn build && cp package.json dist/ && cd dist && tar cvzf ../dist.tar.gz ./",
     "lint": "eslint src/",
-    "prettier": "prettier --print-width 80 --trailing-comma es5 --single-quote --write \"src/**/*.js\""
+    "prettier": "prettier --print-width 80 --trailing-comma es5 --single-quote --write \"src/**/*.js\"",
+    "snyk-protect": "snyk protect",
+    "prepare": "npm run snyk-protect"
   },
   "license": "MIT",
   "dependencies": {
@@ -19,7 +21,8 @@
     "express": "^4.16.3",
     "http": "^0.0.0",
     "joi": "^13.3.0",
-    "stripe": "^6.0.0"
+    "stripe": "^6.0.0",
+    "snyk": "^1.161.1"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
@@ -30,5 +33,6 @@
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-config-prettier": "^2.9.0",
     "eslint-plugin-import": "^2.11.0"
-  }
+  },
+  "snyk": true
 }
