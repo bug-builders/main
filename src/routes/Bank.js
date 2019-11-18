@@ -81,7 +81,7 @@ function cleanTransactions(transactions, membersList = []) {
         ({label} = transaction)
       }
     }
-    return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side};
+    return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side, vat_amount: transaction.vat_amount_cents};
   })
 }
 
