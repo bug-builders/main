@@ -53,10 +53,19 @@ const getTaxAverage = (totalIncome, taxAmount) =>
 async function getBankTransactions() {
   const {data: organizations} = await axios.get(`/organizations/${process.env.BUGBUILDERS_QONTO_LOGIN}`)
   const bankAccount = organizations.organization.bank_accounts[0];
-  const {data: transactions} = await axios.get(`/transactions?slug=${bankAccount.slug}&iban=${bankAccount.iban}`);
+  let page = 1;
+  let nextPage = true;
+  const transactions = [];
+  while(nextPage !== null) {
+    // eslint-disable-next-line
+    const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&slug=${bankAccount.slug}&iban=${bankAccount.iban}`);
+    transactionsResult.transactions.forEach(t => transactions.push(t));
+    nextPage = transactionsResult.meta.next_page;
+    page += 1;
+  }
   return {
     balance: bankAccount.balance_cents,
-    transactions: transactions.transactions,
+    transactions,
   }
 }
 
