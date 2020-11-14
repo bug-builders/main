@@ -52,20 +52,25 @@ const getTaxAverage = (totalIncome, taxAmount) =>
 
 async function getBankTransactions() {
   const {data: organizations} = await axios.get(`/organizations/${process.env.BUGBUILDERS_QONTO_LOGIN}`)
-  const bankAccount = organizations.organization.bank_accounts[0];
-  let page = 1;
-  let nextPage = true;
   const transactions = [];
-  while(nextPage !== null) {
-    // eslint-disable-next-line
-    const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&slug=${bankAccount.slug}&iban=${bankAccount.iban}`);
-    transactionsResult.transactions.forEach(t => transactions.push(t));
-    nextPage = transactionsResult.meta.next_page;
-    page += 1;
+  let balance = 0;
+  for(let i = 0; i < organizations.organization.bank_accounts.length; i+=1) {
+    const bankAccount = organizations.organization.bank_accounts[i];
+    let page = 1;
+    let nextPage = true;
+    while(nextPage !== null) {
+      // eslint-disable-next-line
+      const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&slug=${bankAccount.slug}&iban=${bankAccount.iban}`);
+      transactionsResult.transactions.forEach(t => transactions.push(t));
+      nextPage = transactionsResult.meta.next_page;
+      page += 1;
+    }
+    balance += bankAccount.balance_cents;
   }
+
   return {
-    balance: bankAccount.balance_cents,
-    transactions,
+    balance,
+    transactions: transactions.sort((a,b) => a.settled_at < b.settled_at ? 1 : -1),
   }
 }
 
