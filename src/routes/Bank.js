@@ -104,11 +104,15 @@ function getNet(invoice) {
   const fees = [];
 
   if(invoice.charge && invoice.charge.balance_transaction){
-    net -= invoice.charge.balance_transaction.fee;
     fees.push({name: 'Stripe', amount: invoice.charge.balance_transaction.fee})
+    // eslint-disable-next-line prefer-destructuring
+    net = invoice.charge.balance_transaction.net
+    if(typeof(invoice.metadata.failTVA) === 'undefined' && invoice.tax) {
+      net -= invoice.tax;
+    }
   }
 
-  if(invoice.tax){
+  if(typeof(invoice.metadata.failTVA) === 'undefined' && invoice.tax){
     fees.push({name: 'TVA', amount: invoice.tax})
   }
 
