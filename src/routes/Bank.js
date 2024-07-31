@@ -145,10 +145,11 @@ export default () => {
         const cleanedTransactions = cleanTransactions(transactions, membersList);
         for(let i = 0; i < cleanedTransactions.length; i+=1) {
           const transaction = transactions[i];
+          const cleanedTransaction = cleanedTransactions[i];
           const attachmentId = transaction.attachment_ids && transaction.attachment_ids[0] ? transaction.attachment_ids[0] : null;
-          if(!cleanedTransactions.label && !cleanedTransactions.label.proof && attachmentId) {
+          if(!cleanedTransaction.label.proof && attachmentId) {
             const attachment = await getAttachment(attachmentId)
-            cleanedTransactions.label.proof = attachment.attachment.url
+            cleanedTransaction.label = {label: cleanedTransaction.label, proof: attachment.attachment.url}
           }
         }
         res.json({balance, transactions: cleanedTransactions});
