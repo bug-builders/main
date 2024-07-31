@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 import { Router } from 'express';
 import axios from 'axios';
 import stripePackage from 'stripe';
@@ -7,7 +8,7 @@ import utils from '../utils';
 const stripe = stripePackage(process.env.BUGBUILDERS_STRIPE_KEY);
 // const bugbuildersFees = 10/100;
 
-axios.defaults.baseURL = 'https://thirdparty.qonto.eu/v2/';
+axios.defaults.baseURL = 'https://thirdparty.qonto.com/v2/';
 axios.defaults.headers.common.Authorization = `${process.env.BUGBUILDERS_QONTO_LOGIN}:${process.env.BUGBUILDERS_QONTO_SECRET}`;
 
 function anon(label, members) {
@@ -49,6 +50,12 @@ const getTaxAmount = totalIncome =>
 const getTaxAverage = (totalIncome, taxAmount) =>
   Math.ceil((parseFloat(taxAmount) / parseFloat(totalIncome)) * 100);
 
+
+async function getAttachment(attachmentId) {
+  const {data} = await axios.get(`/attachments/${attachmentId}`)
+  return data
+
+}
 
 async function getBankTransactions() {
   const {data: organizations} = await axios.get(`/organizations/${process.env.BUGBUILDERS_QONTO_LOGIN}`)
@@ -127,15 +134,23 @@ function getNet(invoice) {
 
 export default () => {
   const route = Router();
-  route.get('/', (req, res) => {
+  route.get('/', async (req, res) => {
     let membersList;
     stripe.customers.list({limit: 100})
       .then(customers => {
         membersList = customers.data.filter(customer => typeof(customer.metadata.membre) !== 'undefined');
         return getBankTransactions()
       })
-      .then(({ balance, transactions }) => {
+      .then(async ({ balance, transactions }) => {
         const cleanedTransactions = cleanTransactions(transactions, membersList);
+        for(let i = 0; i < cleanedTransactions.length; i+=1) {
+          const transaction = transactions[i];
+          const attachmentId = transaction.attachment_ids && transaction.attachment_ids[0] ? transaction.attachment_ids[0] : null;
+          if(!cleanedTransactions.label && !cleanedTransactions.label.proof && attachmentId) {
+            const attachment = await getAttachment(attachmentId)
+            cleanedTransactions.label.proof = attachment.attachment.url
+          }
+        }
         res.json({balance, transactions: cleanedTransactions});
       })
       .catch(err => {
