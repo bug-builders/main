@@ -5,6 +5,8 @@ import stripePackage from 'stripe';
 
 import utils from '../utils';
 
+const qontoSwitchAccountDate = '2020-10-19T16:05:24.433Z'
+
 const stripe = stripePackage(process.env.BUGBUILDERS_STRIPE_KEY);
 // const bugbuildersFees = 10/100;
 
@@ -67,7 +69,7 @@ async function getBankTransactions() {
     let nextPage = true;
     while(nextPage !== null) {
       // eslint-disable-next-line
-      const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&slug=${bankAccount.slug}&iban=${bankAccount.iban}`);
+      const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&bank_account_id=${bankAccount.id}&status[]=completed&status[]=pending`);
       transactionsResult.transactions.forEach(t => transactions.push(t));
       nextPage = transactionsResult.meta.next_page;
       page += 1;
@@ -77,7 +79,7 @@ async function getBankTransactions() {
 
   return {
     balance,
-    transactions: transactions.sort((a,b) => a.settled_at < b.settled_at ? 1 : -1),
+    transactions,
   }
 }
 
@@ -134,6 +136,20 @@ function getNet(invoice) {
 
 export default () => {
   const route = Router();
+  route.get('/attachments/:attachmentId', async (req, res) => {
+    const {attachmentId} = req.params
+    try {
+      if(typeof attachmentId !== 'string') {
+        throw new Error('Not valid attachmentId')
+      }
+      const attachment = await getAttachment(attachmentId)
+      res.redirect(attachment.attachment.url)
+    } catch(err) {
+      console.error(err)
+      res.status(500).json({error: 'Something goes wrong'})
+    }
+  });
+
   route.get('/', async (req, res) => {
     let membersList;
     stripe.customers.list({limit: 100})
@@ -148,8 +164,7 @@ export default () => {
           const cleanedTransaction = cleanedTransactions[i];
           const attachmentId = transaction.attachment_ids && transaction.attachment_ids[0] ? transaction.attachment_ids[0] : null;
           if(!cleanedTransaction.label.proof && attachmentId) {
-            const attachment = await getAttachment(attachmentId)
-            cleanedTransaction.label = {label: cleanedTransaction.label, proof: attachment.attachment.url}
+            cleanedTransaction.label = {label: cleanedTransaction.label, proof: `/bank/attachments/${attachmentId}`}
           }
         }
         res.json({balance, transactions: cleanedTransactions});
@@ -214,6 +229,15 @@ export default () => {
       }
       return {date: new Date(invoice.date*1000), amount: net, label: invoice.number, type: 'credit', fees: []}
     })
+
+    const resetInvoicesPreQontoSwitchAmount = cleanedInvoices.reduce((acc, invoice) => {
+      if(invoice.date.toString() < qontoSwitchAccountDate) {
+        return acc 
+      }
+      return acc + invoice.amount
+    }, 0)
+
+    console.log(resetInvoicesPreQontoSwitchAmount)
 
     const total = cleanedInvoices.reduce((accu, invoice) => accu + invoice.amount, 0)
     const bankTransactions = await getBankTransactions();
