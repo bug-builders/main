@@ -69,7 +69,7 @@ async function getBankTransactions() {
     let nextPage = true;
     while(nextPage !== null) {
       // eslint-disable-next-line
-      const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&bank_account_id=${bankAccount.id}&status[]=completed&status[]=pending`);
+      const {data: transactionsResult} = await axios.get(`/transactions?page=${page}&bank_account_id=${bankAccount.id}&status[]=completed`);
       transactionsResult.transactions.forEach(t => transactions.push(t));
       nextPage = transactionsResult.meta.next_page;
       page += 1;
@@ -79,7 +79,7 @@ async function getBankTransactions() {
 
   return {
     balance,
-    transactions,
+    transactions: transactions.sort((a,b) => a.settled_at < b.settled_at ? 1 : -1),
   }
 }
 
@@ -158,12 +158,13 @@ export default () => {
         return getBankTransactions()
       })
       .then(async ({ balance, transactions }) => {
+        console.log(JSON.stringify(transactions, null, 2))
         const cleanedTransactions = cleanTransactions(transactions, membersList);
         for(let i = 0; i < cleanedTransactions.length; i+=1) {
           const transaction = transactions[i];
           const cleanedTransaction = cleanedTransactions[i];
           const attachmentId = transaction.attachment_ids && transaction.attachment_ids[0] ? transaction.attachment_ids[0] : null;
-          if(!cleanedTransaction.label.proof && attachmentId) {
+          if(!cleanedTransaction.label.proof && attachmentId && transaction.side === 'debit') {
             cleanedTransaction.label = {label: cleanedTransaction.label, proof: `/bank/attachments/${attachmentId}`}
           }
         }
