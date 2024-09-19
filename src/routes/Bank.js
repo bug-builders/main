@@ -158,7 +158,6 @@ export default () => {
         return getBankTransactions()
       })
       .then(async ({ balance, transactions }) => {
-        console.log(JSON.stringify(transactions, null, 2))
         const cleanedTransactions = cleanTransactions(transactions, membersList);
         for(let i = 0; i < cleanedTransactions.length; i+=1) {
           const transaction = transactions[i];
