@@ -86,23 +86,23 @@ async function getBankTransactions() {
 function cleanTransactions(transactions, membersList = []) {
   return transactions.map(transaction => {
     let label;
-    if(transaction.side === 'credit') {
-      label = anon(transaction.label, membersList);
-    } else {
-      let note = '';
+    let note = null;
       try {
         note = JSON.parse(transaction.note);
       } catch (err) {
-        note = '';
+        note = null;
       }
-      if(note) {
-        label = note;
-        if(typeof(label.label) === 'undefined'){
-          label.label = transaction.label;
-        }
-      } else {
-        ({label} = transaction)
+
+
+    if(note) {
+      label = note;
+      if(typeof(label.label) === 'undefined'){
+        label.label = transaction.label;
       }
+    } else if (transaction.side === 'credit') {
+      label = {label: anon(transaction.label, membersList)};
+    } else {
+      label = {label: transaction.label};
     }
     return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side, vat_amount: transaction.vat_amount_cents};
   })
@@ -163,8 +163,8 @@ export default () => {
           const transaction = transactions[i];
           const cleanedTransaction = cleanedTransactions[i];
           const attachmentId = transaction.attachment_ids && transaction.attachment_ids[0] ? transaction.attachment_ids[0] : null;
-          if(!cleanedTransaction.label.proof && attachmentId && transaction.side === 'debit') {
-            cleanedTransaction.label = {label: cleanedTransaction.label, proof: `/bank/attachments/${attachmentId}`}
+          if(!cleanedTransaction.label.proof && attachmentId) {
+            cleanedTransaction.label = {label: cleanedTransaction.label.label || cleanedTransaction.label, proof: `/bank/attachments/${attachmentId}`}
           }
         }
         res.json({balance, transactions: cleanedTransactions});
