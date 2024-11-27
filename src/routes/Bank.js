@@ -86,6 +86,7 @@ async function getBankTransactions() {
 function cleanTransactions(transactions, membersList = []) {
   return transactions.map(transaction => {
     let label;
+    let tag = null;
     let note = null;
       try {
         note = JSON.parse(transaction.note);
@@ -99,12 +100,16 @@ function cleanTransactions(transactions, membersList = []) {
       if(typeof(label.label) === 'undefined'){
         label.label = transaction.label;
       }
+      if(typeof(label.tag) !== 'undefined') {
+        // eslint-disable-next-line
+        tag = label.tag;
+      }
     } else if (transaction.side === 'credit') {
       label = {label: anon(transaction.label, membersList)};
     } else {
       label = {label: transaction.label};
     }
-    return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side, vat_amount: transaction.vat_amount_cents};
+    return {date: new Date(transaction.settled_at), label, amount: transaction.amount_cents, type: transaction.side, vat_amount: transaction.vat_amount_cents, tag};
   })
 }
 
@@ -167,6 +172,18 @@ export default () => {
             cleanedTransaction.label = {label: cleanedTransaction.label.label || cleanedTransaction.label, proof: `/bank/attachments/${attachmentId}`}
           }
         }
+        if(req.query.tag) {
+          const filteredTransactions = cleanedTransactions.filter((t) => t.tag === req.query.tag)
+          const filteredBalance = filteredTransactions.reduce((accu, transaction) => {
+            if(transaction.type === 'credit') {
+              return accu + (transaction.amount - transaction.vat_amount)
+            }
+            return accu - (transaction.amount - transaction.vat_amount)
+          }, 0)
+          res.json({balance: filteredBalance, transactions: filteredTransactions});
+          return
+        }
+
         res.json({balance, transactions: cleanedTransactions});
       })
       .catch(err => {
