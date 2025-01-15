@@ -1,6 +1,4 @@
-ARG GIT_COMMIT
 FROM node:18
-RUN echo "Based on commit: $GIT_COMMIT"
 
 WORKDIR /usr/src/app
 
