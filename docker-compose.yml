@@ -8,3 +8,5 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     command: yarn start
+    env_file:
+      - stack.env
