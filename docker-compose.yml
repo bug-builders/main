@@ -2,7 +2,6 @@ version: '3.8'
 
 services:
   app:
-    image: main-bug-builders:${GIT_COMMIT}
     build:
       context: .
       dockerfile: Dockerfile
