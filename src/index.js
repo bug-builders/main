@@ -20,5 +20,5 @@ app.use('/bank', bank());
 app.use('/customer', customer());
 app.use('/invoices', invoices());
 
-app.server.listen(process.env.BUGBUILDERS_SERVER_PORT || 3000, process.env.BUGBUILDERS_SERVER_PORT || '127.0.0.1');
+app.server.listen(process.env.BUGBUILDERS_SERVER_PORT || 3000, process.env.BUGBUILDERS_SERVER_HOSTNAME || '0.0.0.0');
 export default app;
